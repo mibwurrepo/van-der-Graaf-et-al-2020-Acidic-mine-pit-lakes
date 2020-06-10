@@ -15,7 +15,7 @@ For code related queries: Charlotte van der Graaf (lot.vandergraaf[at]wur.nl)
 
 This repository contains codes for analysis done in the research/review article by e.g. van der Graaf C., et al (2020) Acidic mine pit lakes as natural bioreactors: in-situ attenuation mediated by biosulfidogenesis.  _Under review_. [Link](to be updated).  
 
-Project folder strucutre:    
+**Structure:**      
 van-der-Graaf-et-al-2020-Acidic-mine-pit-lakes
 
 
