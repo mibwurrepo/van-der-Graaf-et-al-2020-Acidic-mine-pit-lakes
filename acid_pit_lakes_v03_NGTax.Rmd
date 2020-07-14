@@ -1,0 +1,439 @@
+---
+title: "Biosulfidogenesis mediates natural attenuation in acidic mine pit lakes"
+author: "Sudarshan"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output: 
+  html_document: 
+    toc: yes
+    toc_depth: 2
+    toc_float: true
+    code_folding: hide  
+editor_options: 
+  chunk_output_type: console
+---
+
+
+## Project attributes  
+
+**Project title** : Biosulfidogenesis mediates natural attenuation in acidic mine pit lakes   
+**Authors** : Charlotte M. van der Graaf, Javier Sánchez‑España, Iñaki Yusta, Andrey Ilin, Sudarshan Shetty, Nicole Bale, Laura Villanueva, Alfons J.M. Stams, Irene Sánchez‑Andrea
+
+```{r warning=FALSE, message=FALSE}
+
+# Source to install these are Biocondcutor/CRAN/GitHub
+library(microbiome) # data analysis and visualisation # Bioconductor
+library(phyloseq) # also the basis of data object. Data analysis and visualisation # Bioconductor
+library(RColorBrewer) # nice color options # CRAN
+library(ggpubr) # publication quality figures, based on ggplot2 # CRAN
+library(DT) # interactive tables in html and markdown # CRAN
+library(data.table) # alternative to data.frame # CRAN
+library(dplyr) # d # CRAN
+library(microbiomeutilities) # GitHub
+library(tidyr) # CRAN
+
+
+theme_set(theme_bw())
+min_theme <- theme_update(
+  #panel.border = element_blank(),
+  panel.grid = element_blank(),
+  panel.spacing = unit(0, "line"),
+  #axis.ticks = element_blank(),
+  legend.title = element_text(size = 16),
+  legend.text = element_text(size = 14),
+  axis.text = element_text(size = 14),
+  axis.title = element_text(size = 14),
+  strip.background = element_blank(),
+  strip.text = element_text(size = 16),
+  legend.key = element_blank()
+)
+
+```
+
+When running the codes for first time change the `eval=FALSE to TRUE`  
+```{r, eval=TRUE}
+# Modified directory names to reflect ESV picking approach
+dir.create("figuresNGTax")
+dir.create("tablesNGTax")
+dir.create("rdsNGTax")
+
+# import biom file as phyloseq object
+ps <- read_phyloseq(otu.file = "input/Galaxy22-[NG-Tax__Huelva-library_concat].biom1", 
+                    taxonomy.file = NULL, 
+                    metadata.file = "input/FCLZ-mappingfile-metadata-final.csv", 
+                    type = "biom") 
+
+print(ps)
+
+# remove taxa where no ESV's were detected?
+any(taxa_sums(ps)==0)
+ps1 <- prune_taxa(taxa_sums(ps) !=0, ps)
+print(ps1)
+#summarize_phyloseq(ps)
+#summarize_phyloseq(ps1)
+DT::datatable(tax_table(ps1))
+```
+
+Clean the taxonomy table to avoid ambiguity in analysis.  
+```{r, eval=TRUE}
+#Clean taxonomy table  
+
+taxa_names(ps1) <- paste0("ASV", seq(ntaxa(ps1)))
+
+#tax_table(ps1)[,colnames(tax_table(ps1))] <- gsub(tax_table(ps1)[,colnames(tax_table(ps1))],pattern="[a-z]__",replacement="")
+
+tax_table(ps1)[,colnames(tax_table(ps1))] <- gsub(tax_table(ps1)[,colnames(tax_table(ps1))],pattern="=*",replacement="")
+
+# remove astriks
+tax_table(ps1)[,colnames(tax_table(ps1))] <- gsub(tax_table(ps1)[,colnames(tax_table(ps1))],pattern="[*]",replacement="")
+
+# remove ~
+tax_table(ps1)[,colnames(tax_table(ps1))] <- gsub(tax_table(ps1)[,colnames(tax_table(ps1))],pattern="[~]",replacement="")
+
+ps1.a <- ps1
+
+tax_table(ps1.a)[tax_table(ps1.a) == "k__<empty>"] <- "k__"
+tax_table(ps1.a)[tax_table(ps1.a) == "p__<empty>"] <- "p__"
+tax_table(ps1.a)[tax_table(ps1.a) == "c__<empty>"] <- "c__"
+tax_table(ps1.a)[tax_table(ps1.a) == "o__<empty>"] <- "o__"
+tax_table(ps1.a)[tax_table(ps1.a) == "f__<empty>"] <- "f__"
+tax_table(ps1.a)[tax_table(ps1.a) == "g__<empty>"] <- "g__"
+
+# some more ambiguities 
+tax_table(ps1.a)[tax_table(ps1.a) == "o__Unknown_Order"] <- "o__"
+tax_table(ps1.a)[tax_table(ps1.a) == "c__Unknown_Class"] <- "c__"
+tax_table(ps1.a)[tax_table(ps1.a) == "f__Unknown_Family"] <- "f__"
+
+ps1 <- ps1.a
+unique(tax_table(ps1.a)[,2])
+
+DT::datatable(tax_table(ps1.a))
+```
+
+
+```{r, eval=TRUE}
+saveRDS(ps1, "rdsNGTax/ps1.rds")
+```
+
+Determine total reads remaining per sample after filtering and total ESvs detected per sample
+```{r}
+# Determine and print SeqDepth
+seqDepth = colSums(otu_table(ps1))
+ESVcount = colSums((otu_table(ps1)>0))
+
+write.csv(seqDepth, "tablesNGTax/seqDepthNGTax.csv")
+write.csv(ESVcount, "tablesNGTax/ESVcountNGTax.csv")
+```
+
+
+```{r}
+ps1 <- readRDS("rdsNGTax/ps1.rds")
+ps1
+sample_names(ps1) <- sample_data(ps1)$SampleName
+
+summarize_phyloseq(ps1)
+```
+
+# Rank abundance curves  
+This will give us an idea about how the taxa are distributed, i.e dominance and rarity in the ecosystem. These drive several of our choices for downstream ecologically relavant analysis.  
+```{r}
+set.seed(9242)  # This will help in reproducing the filtering and nomalisation. 
+#ps1 <- subset_samples(ps, treatment != "MOCK")
+sort(sample_sums(ps1))
+ps0.rar <- rarefy_even_depth(ps1, sample.size = 14960)
+#library(BiodiversityR)
+
+#RankAbun.1 <- rankabundance(t(abundances(ps1)))
+#RankAbun.1
+#rankabunplot(RankAbun.1, scale='proportion', addit=FALSE, specnames=c(1,2,3))
+
+# this converts taxa counts in each sample to a percentage
+clusterData = phy_to_ldf(ps0.rar, "compositional") # takes lot of time!!!
+clusterData = filter(clusterData,Abundance > 0)
+
+# this is where the mean is calculated and the taxa to display is chosen
+clusterAgg = aggregate(Abundance ~ OTUID + Phylum,data=clusterData,mean)
+
+# filtering and picking the number to display
+clusterAgg = clusterAgg[order(-clusterAgg$Abundance),][1:100,]
+
+ggplot(clusterAgg,aes(x=reorder(OTUID,-Abundance),y=Abundance)) +
+    geom_point(aes(color=Phylum),size=3) + ggtitle("Rank Abundance curve plot")+
+    theme(axis.ticks = element_blank(), axis.text.x = element_blank()) +       xlab("Rank")+ylab("Abundance") #+ scale_color_brewer(palette = "Spectral")
+#+ scale_y_log10()
+ggsave("figuresNGTax/rank_abund_curve.pdf", height = 6, width = 12)
+```
+
+In the rank abundance plot, we see that one-two taxa show very high abundance, while majority are very low abundance.  
+
+## Diversity measures  
+
+```{r}
+
+lak.div <- alpha(ps0.rar, index = "all")
+
+# get the metadata out as seprate object
+lake.meta <- meta(ps0.rar)
+
+# Add the rownames as a new colum for easy integration later.
+lake.meta$sam_name <- rownames(lake.meta)
+
+# Add the rownames to diversity table
+lak.div$sam_name <- rownames(lak.div)
+
+# merge these two data frames into one
+div.df <- merge(lak.div, lake.meta, by = "sam_name")
+
+write.csv(div.df, "tablesNGTax/divindicesNGTax.csv")
+```
+
+We select global ecosystem state variables to check for dominance, rarity, evenness and diversity. Below, indices were chosen for highly diverse ecosystem such as this lake, which can have one or two highly dominant taxa and a very high number of rare (low abundance) taxa.  
+* Richness: Chao1:- Estimates the number of species in a community based on observed taxa.  
+* Diversity: inverse_simpson:- Types of taxa plus average proportional abundance is taken into account.  
+* Evenness: Simpson:- Avoid bais towards very high or low abundance groups and is independent of richness in the community.  
+* Dominance: DMN' McNaughton’s dominance:- The sum of the relative abundance of the two most abundant taxa.  
+* Rarity: log_modulo_skewness:- Quantifies the concentration of the least abundant species.  
+
+
+```{r fig.width=8, fig.height10, warning=FALSE, message=FALSE}
+
+#head(div.df)
+div.df2 <- div.df[, c("sam_name","site.code", "chao1","diversity_inverse_simpson", "evenness_simpson", "dominance_dmn", "rarity_log_modulo_skewness")]
+
+colnames(div.df2) <- c("Sample Name","Site", "Richness:Chao1", "Diversity:Inverse-Simpson", "Evenness:Simpson", "Dominance:DMN", "Rarity:Log-modulo skewness")
+write.table(div.df2, "tablesNGTax/diversity_indices.txt", sep = "\t")
+# check
+DT::datatable(div.df2)
+
+write.csv(div.df2, "tablesNGTax/divindicessubsetNGTax.csv")
+```
+
+
+## Correlation between depth and diversity measures  
+This is exploratory
+
+```{r fig.height=10, fig.width=16}
+
+div.df.loc <- div.df[, c("sam_name", "replicate","site.code", "location.m.", "chao1","diversity_inverse_simpson", "evenness_simpson", "dominance_dmn", "rarity_log_modulo_skewness")]
+
+div.df.loc.m <- gather(div.df.loc, Index, Value, chao1:rarity_log_modulo_skewness, factor_key=TRUE)
+
+#div.df.loc.m.s <- subset(div.df.loc.m, replicate==2)
+
+ggscatter(div.df.loc.m, 
+          x="location.m.", 
+          y="Value", 
+          add="reg.line",
+          facet.by = c("Index", "replicate"),
+          scales="free",
+          xlab = "Depth (m)",
+          shape = "site.code",
+          palette = "Set2") + stat_cor(method = "pearson")
+
+ggsave("figuresNGTax/diversity_depth_correlation.pdf", height = 12, width = 16)
+```
+
+More or less, richness (Chao1) and rarity (log-modulo skewness) show a positive and significant trend.   
+
+# Phylum level composition  
+
+```{r Phylum-plot, fig.width=16,fig.height=6}
+# Remove ASVs not classified to any Kingdom/Domain
+ps1.as <- subset_taxa(ps1, Domain !="NA")
+
+# Remove ZP30r2 sample as it has only one read
+ps1.as <- prune_samples(sample_sums(ps1.as) >1000, ps1.as)
+
+# Convert counts to compositional
+ps1.rel <- microbiome::transform(ps1.as, "compositional")
+ps1.phy <- aggregate_top_taxa(ps1.rel, top=10 ,level="Phylum")
+
+p.phy <- plot_composition(ps1.phy, sample.sort = "SampleName") + 
+  scale_fill_brewer("Phyla",palette = "Set3")
+p.phy
+ggsave("figuresNGTax/barplot_phylum_sites.pdf", height = 6, width = 16)
+```
+
+Here, the differences in some replicates is evident.  
+
+```{r Family-plot , fig.width=16,fig.height=6}
+# Rename unclassified Phylum
+
+ps1.fam <- aggregate_top_taxa(ps1.rel, top=10 ,level="Family")
+
+ps1.fam.df <- psmelt(ps1.fam)
+
+ps1.fam.df$unique <- gsub('f__$', 'Other', ps1.fam.df$unique )
+
+order_sam <- c("LZ00r1","LZ00r2","LZ00r3","LZ30r1","LZ30r3","LZ70r1","LZ70r2","LZ70r3","FC01r1","FC01r2","FC01r3","FC15r1", "FC15r2","FC15r3","FC30r1","FC30r2","FC45r1","FC45r2","FC45r3")
+ps1.fam.df <- ps1.fam.df %>% arrange(unique)
+ps1.fam.df$unique <- factor(ps1.fam.df$unique, levels = unique(ps1.fam.df$unique))
+ps1.fam.df$Sample <- factor(ps1.fam.df$Sample,levels = order_sam)
+
+
+p <- ggplot(ps1.fam.df, aes(x = Sample, y = Abundance, fill = unique)) + 
+  geom_bar(position = "stack", stat = "identity", 
+           color = "black") #+ scale_x_discrete(labels = as.factor(ps1.fam.df$Sample), breaks = as.factor(ps1.fam.df$NEWid))
+p <- p + labs(y = "Abundance")
+p <- p + theme(axis.text.x = element_text(angle = 90, 
+                                          vjust = 0.5, hjust = 0))
+p <- p + guides(fill = guide_legend(reverse = FALSE)) +
+  scale_fill_brewer(palette = "Paired")
+p
+
+ggsave("figuresNGTax/barplot_family_sites.pdf", height = 6, width = 16)
+```
+
+
+# Top Genera  
+
+```{r fig.width=16,fig.height=12}
+#ps1.d <- ps1.rel
+#tax_table(ps1.d)[tax_table(ps1.d)[,"Genus"]=="uncultured bacterium","Genus"] <- "uncultured taxa"
+#uncultured bacterium
+#uncultured archaeon
+#uncultured soil bacterium
+#uncultured anaerobic bacterium
+
+#tax_table(ps1.rel)[is.na(tax_table(ps1.rel)[,"Genus"]),"Genus"] <- "uncultured taxa"
+ps1.gen <- aggregate_taxa(ps1.rel, level="Genus")
+#head(tax_table(ps1.gen))
+
+top.gen <- top_taxa(ps1.gen, n=50)
+
+list <- setdiff(taxa_names(ps1.gen), top.gen)
+length(list)
+#length(top.gen)
+top.gen.ps <- merge_taxa2(ps1.gen, taxa = list, name = "Others")
+
+#unique(tax_table(s)[,7])
+
+gen.df <- phy_to_ldf(top.gen.ps, NULL)
+#gen.df <- subset(gen.df, OTUID !="Unknown")
+p.heat <- ggplot(gen.df, aes(x = Sam_rep, y = OTUID)) + geom_tile(aes(fill = Abundance), color= "white", size = 1) 
+p.heat <- p.heat + scale_fill_gradient("Abundance",high="darkgreen", low = "white", na.value = "white")
+
+p.heat <- p.heat + theme(axis.text.y = element_text(colour = 'black', size = 10, face = 'italic')) 
+# Make seperate samples based on main varaible
+#p.heat <- p.heat #+ facet_grid(~xlabel, 
+#scales = "free") + rremove("x.text") 
+p.heat <- p.heat + ylab("Genus")
+p.heat <- p.heat +  rotate_x_text()
+
+#p.heat
+p.heat <- p.heat + theme(legend.key = element_blank(), 
+                         strip.background = element_rect(colour="black", fill="white"))
+
+print(p.heat)
+ggsave("figuresNGTax/genus_top50_heatmap.pdf", height = 12, width = 16)
+ggsave("figuresNGTax/genus_top50_heatmap.tiff", height = 12, width = 16)
+```
+
+
+## Correlation between replicates  
+
+Replicates were extraction replicates, obtained by subsamping the fitlers (without prior homogenization). Only one filter was obtained per depth, ~ 1/6 of the filter was taken per extraction replicate.
+
+```{r sample-rep-correlation, fig.height=6,fig.width=8}
+sample_names(ps1.gen) <- sample_data(ps1.gen)$SampleName
+
+x <- abundances(ps1.gen, "log10")
+dim(x)
+y <- abundances(ps1.gen, "log10")
+dim(y)
+correlation.table <- associate(x, y, method = "spearman", mode = "table", p.adj.threshold = 0.05, n.signif = 1)
+correlation.mat <- associate(x, y, method = "spearman", mode = "matix", p.adj.threshold = 0.05, n.signif = 1)
+DT::datatable(correlation.table)
+write.table(correlation.table, "tablesNGTax/replicate_correlation.txt", sep="\t")
+df <- correlation.table
+p <- ggplot(df, aes(X1, X2, group=X2)) 
+p <- p + geom_tile(aes(fill = Correlation)) 
+p <- p + geom_text(aes(fill = df$Correlation, label = round(df$Correlation, 1)), size = 2) 
+p <- p + scale_fill_gradientn("Correlation", 
+                              breaks = seq(from = -1, to = 1,  by = 0.25), 
+                              colours = c("blue", "white", "red"), 
+                              limits = c(-1, 1))
+p <- p + theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) 
+p <- p + xlab("") + ylab("")
+print(p)
+ggsave("figuresNGTax/replicate_correlation.pdf", height = 12, width = 16)
+
+```
+
+## Correlating genus with parameters   
+
+Here, limited metadata features with most information.   
+NOTE: The figure is too big to fit in this report please check the `elemnt_sample_correaltion.pdf` in the folder
+```{r element-corr, fig.height=10, fig.width=16}
+
+#ps1.gen.rel
+ps1.gen.fil = filter_taxa(ps1.gen, function(x) mean(x) > 1e-5, TRUE)
+var_meta <- meta(ps1.gen.fil)
+
+#metadf.sb <- metadf[,13:70]
+
+rownames(var_meta) <- var_meta$X.SampleID
+
+var_meta.sb <- var_meta[,c("location.m.","Temp","SpCond","Sal","TDS","pH","ORP","TDG","LDOp","LDO","Na","K","Mg","Ca","Fe","SO4","SiO2","Mn","Cu","Zn","Al","As","Be","Cd","Cr","Co","Ni","Pb","Se","U" )]
+
+#var_meta <- read.csv("variable_metadata.csv")
+#head(var_meta.sb)
+x <- t(abundances(ps1.gen.fil, "log10"))
+dim(x)
+y <- as.matrix(var_meta.sb)
+dim(y)
+correlation.table <- associate(x, y, method = "spearman", mode = "table", p.adj.threshold = 0.05, n.signif = 1)
+write.table(correlation.table, "tablesNGTax/elemnt_taxa_correlation.txt", sep="\t")
+
+df <- correlation.table
+#head(df)
+df <- subset(df, p.adj <= 0.05)
+
+df <- subset(df, abs(Correlation) >= 0.7)
+
+p <- ggplot(df, aes(X1, X2, group=X2)) 
+p <- p + geom_tile(aes(fill = Correlation)) 
+p <- p + geom_text(aes(fill = df$Correlation, label = round(df$Correlation, 1)), size = 2) 
+p <- p + scale_fill_gradientn("Correlation", 
+                              breaks = seq(from = -1, to = 1,  by = 0.25), 
+                              colours = c("blue", "white", "red"), 
+                              limits = c(-1, 1))
+p <- p + theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) 
+p <- p + xlab("") + ylab("") + coord_flip()
+print(p)
+ggsave("figuresNGTax/elemnt_taxa_correlation.pdf", height = 16, width = 20)
+
+```
+
+```{r}
+DT::datatable(correlation.table)
+```
+
+# Community structure at different depth and site  
+
+```{r, ord-1, fig.height=6, fig.width=16}
+set.seed(4235421)
+# proj <- get_ordination(pseq, "MDS", "bray")
+ord <- ordinate(ps1.rel, "MDS", "bray")
+#meta(ps1.com)
+plot_ordination(ps1.rel, ord)+ 
+  geom_vline(xintercept = 0, color="grey60") + 
+  geom_hline(yintercept = 0, color="grey60") + 
+  geom_point(aes(size = location.m., 
+                 color = site.description,
+                 shape = site.description)) +
+  scale_color_brewer("Location", palette = "Set2") #+ 
+#  facet_grid(~replicate) 
+
+
+ggsave("figuresNGTax/ordinationCombined.pdf", height = 4, width = 12)
+#ggsave("ordination.tiff", height = 4, width = 12)
+
+```
+
+Above is the ordination plot. At a higher community level, we see more or less same patterns between replicates.    
+
+
+```{r}
+sessionInfo()
+```
+
