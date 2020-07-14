@@ -21,30 +21,15 @@ van-der-Graaf-et-al-2020-Acidic-mine-pit-lakes
 
 ```
 Structure:  
-Name of the repository/
-|------- Subfolder_1/    # short description of what it contains.    
-      |------- Subfolder 1.1/ # short description.
-           |------ code.R or code.rmd # short description.  
-           |------ 
-      |------- Subfolder 1.2/ # short description.  
-           |------ code.R or code.rmd  
-      |------- Subfolder 1.3/ # short description.  
-           |------ code.R or code.rmd
-      |------- some files if any. e.g. "dehalo_genes.tab" # short description. 
+van-der-Graaf-et-al-2020-Acidic-mine-pit-lakes/  
+
+|------- input/    # biom and metadata files are located here.     
+      |------- Galaxy22-[NG-Tax__Huelva-library_concat].biom1.zip # unzip this file before running the analysis    
+      |------- FCLZ-mappingfile-metadata-final.csv  # metadata file   
+      
+|------- acid_pit_lakes_v03_NGTax.Rmd # Rmarkdown file with analysis workflow  
                         
-|------- Subfolder_2/ # contains list of human gut metagenomes.  
-      |------- Subfolder 2.1/ # short description.
-           |------ code.R or code.rmd # short description.  
-           |------ 
-      |------- Subfolder 2.2/ # short description.  
-           |------ code.R or code.rmd  
-      |------- Subfolder 2.3/ # short description.  
-           |------ code.R or code.rmd
-      |------- some files if any. e.g. "dehalo_genes.tab" # short description. 
-          
-|------- Subfolder_3/ 
-|------- Any othor files # e.g. The Rproject file/supplementary table etc.  
-  
+
 
 ```
 Clone or download the repository as zipped file, unzip and open the .rmd file in R to re-run the analysis.  
