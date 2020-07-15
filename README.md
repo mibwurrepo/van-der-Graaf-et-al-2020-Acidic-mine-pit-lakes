@@ -33,8 +33,7 @@ van-der-Graaf-et-al-2020-Acidic-mine-pit-lakes/
 
 
 ```
-Clone or download the repository as zipped file, unzip and open the .rmd file in R to re-run the analysis. 
-Make sure to properly set your working directory.
+Clone or download the repository as zipped file, unzip and open the .Rproj file. The open the .rmd file in R to re-run the analysis. 
 
 
 
