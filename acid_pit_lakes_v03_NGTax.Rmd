@@ -50,7 +50,7 @@ min_theme <- theme_update(
 ```
 
 When running the codes for first time change the `eval=FALSE to TRUE`  
-```{r, eval=TRUE}
+```{r, eval=FALSE}
 # Modified directory names to reflect ESV picking approach
 dir.create("figuresNGTax")
 dir.create("tablesNGTax")
@@ -139,7 +139,7 @@ This will give us an idea about how the taxa are distributed, i.e dominance and 
 set.seed(9242)  # This will help in reproducing the filtering and nomalisation. 
 #ps1 <- subset_samples(ps, treatment != "MOCK")
 sort(sample_sums(ps1))
-ps0.rar <- rarefy_even_depth(ps1, sample.size = 14960)
+ps0.rar <- rarefy_even_depth(ps1, sample.size = 14600)
 #library(BiodiversityR)
 
 #RankAbun.1 <- rankabundance(t(abundances(ps1)))
@@ -284,7 +284,7 @@ ggsave("figuresNGTax/barplot_family_sites.pdf", height = 6, width = 16)
 ```
 
 
-# Top Genera  
+# Top 50 Genera  
 
 ```{r fig.width=16,fig.height=12}
 #ps1.d <- ps1.rel
@@ -328,6 +328,49 @@ ggsave("figuresNGTax/genus_top50_heatmap.pdf", height = 12, width = 16)
 ggsave("figuresNGTax/genus_top50_heatmap.tiff", height = 12, width = 16)
 ```
 
+# Top 30 Genera  
+
+```{r fig.width=16,fig.height=12}
+#ps1.d <- ps1.rel
+#tax_table(ps1.d)[tax_table(ps1.d)[,"Genus"]=="uncultured bacterium","Genus"] <- "uncultured taxa"
+#uncultured bacterium
+#uncultured archaeon
+#uncultured soil bacterium
+#uncultured anaerobic bacterium
+
+#tax_table(ps1.rel)[is.na(tax_table(ps1.rel)[,"Genus"]),"Genus"] <- "uncultured taxa"
+ps1.gen <- aggregate_taxa(ps1.rel, level="Genus")
+#head(tax_table(ps1.gen))
+
+top.gen30 <- top_taxa(ps1.gen, n=30)
+
+list30 <- setdiff(taxa_names(ps1.gen), top.gen30)
+length(list30)
+#length(top.gen)
+top.gen.ps30 <- merge_taxa2(ps1.gen, taxa = list30, name = "Others")
+
+#unique(tax_table(s)[,7])
+
+gen.df30 <- phy_to_ldf(top.gen.ps30, NULL)
+#gen.df <- subset(gen.df, OTUID !="Unknown")
+p.heat30 <- ggplot(gen.df30, aes(x = Sam_rep, y = OTUID)) + geom_tile(aes(fill = Abundance), color= "white", size = 1) 
+p.heat30 <- p.heat30 + scale_fill_gradient("Abundance",high="darkgreen", low = "white", na.value = "white")
+
+p.heat30 <- p.heat30 + theme(axis.text.y = element_text(colour = 'black', size = 12, face = 'italic')) 
+# Make seperate samples based on main varaible
+#p.heat <- p.heat #+ facet_grid(~xlabel, 
+#scales = "free") + rremove("x.text") 
+p.heat30 <- p.heat30 + ylab("Genus")
+p.heat30 <- p.heat30 +  rotate_x_text()
+
+#p.heat
+p.heat30 <- p.heat30 + theme(legend.key = element_blank(), 
+                         strip.background = element_rect(colour="black", fill="white"))
+
+print(p.heat30)
+ggsave("figuresNGTax/genus_top30_heatmap.pdf", height = 12, width = 16)
+ggsave("figuresNGTax/genus_top30_heatmap.tiff", height = 12, width = 16)
+```
 
 ## Correlation between replicates  
 
